@@ -5,9 +5,6 @@ import os
 import openai
 import random
 
-# Set up OpenAI API key
-openai.api_key = os.getenv("OPENAI_API_KEY")
-
 # Initialize session state to store user data
 if "habits_data" not in st.session_state:
     st.session_state.habits_data = [
@@ -44,18 +41,30 @@ def parse_habit_input(habit_text):
 
 # GPT Suggestions
 
+import requests
+
 def get_gpt_response(prompt):
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return response.choices[0].message.content
+        # Replace `GEMINI_API_URL` with the actual URL for Gemini's API
+        gemini_url = "https://api.gemini.com/v1/chat"  # Example endpoint
+        headers = {
+            "Authorization": f"Bearer {os.getenv('GEMINI_API_KEY')}",
+            "Content-Type": "application/json"
+        }
+        data = {
+            "model": "gemini-1.0",  # Replace with the appropriate model
+            "messages": [{"role": "user", "content": prompt}]
+        }
+        
+        response = requests.post(gemini_url, headers=headers, json=data)
+        response.raise_for_status()  # Raise exception for HTTP errors
+        return response.json()["choices"][0]["message"]["content"]
     except Exception as e:
         return f"Error: {e}"
 
+
 def display_chat():
-    st.write("### Chat with HabitFlow")
+    st.write("### Chat with HabitFlow (Powered by Gemini)")
 
     # Display chat history
     for message in st.session_state.chat_history:
@@ -75,6 +84,7 @@ def display_chat():
             st.experimental_rerun()
         else:
             st.error("Please enter a valid message.")
+
 
 # Dashboard View
 def display_dashboard(habits_data):
