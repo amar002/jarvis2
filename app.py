@@ -1,7 +1,12 @@
 import streamlit as st
 from datetime import datetime, time, timedelta
 import json
+import os
+import openai
 import random
+
+# Set up OpenAI API key
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # Initialize session state to store user data
 if "habits_data" not in st.session_state:
@@ -10,6 +15,9 @@ if "habits_data" not in st.session_state:
         {"name": "Read 15 pages", "due": "Today", "status": "Pending"},
         {"name": "Walk 5000 steps", "due": "Tomorrow", "status": "Upcoming"}
     ]
+
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
 
 # Utility functions for habit data
 def load_habits():
@@ -20,6 +28,7 @@ def load_habits():
         return []
 
 def save_habits(habits_data):
+    os.makedirs("data", exist_ok=True)
     with open("data/habits_data.json", "w") as file:
         json.dump(habits_data, file)
 
@@ -33,26 +42,39 @@ def parse_habit_input(habit_text):
         "frequency": frequency
     }
 
-# Personalized habit suggestions
-def get_personalized_habits(focus_areas):
-    habit_suggestions = {
-        "Health": ["Drink 2L water daily", "Walk 10,000 steps", "Stretch for 5 minutes"],
-        "Education": ["Read 15 pages daily", "Review one chapter", "Learn 5 new words"]
-    }
-    suggestions = []
-    for area in focus_areas:
-        suggestions.extend(habit_suggestions.get(area, []))
-    return suggestions
+# GPT Suggestions
 
-def display_suggestions():
-    st.write("### Personalized Habit Suggestions")
-    focus_areas = ["Health", "Education"]  # Replace with dynamic user focus areas
-    suggested_habits = get_personalized_habits(focus_areas)
-    for habit in suggested_habits:
-        st.write(f"✅ {habit}")
-        if st.button(f"Add '{habit}' to My Habits", key=habit):
-            st.session_state.habits_data.append({"name": habit, "due": "Today", "status": "Pending"})
-            st.success(f"Habit '{habit}' added successfully!")
+def get_gpt_response(prompt):
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response['choices'][0]['message']['content']
+    except Exception as e:
+        return f"Error: {e}"
+
+def display_chat():
+    st.write("### Chat with HabitFlow")
+
+    # Display chat history
+    for message in st.session_state.chat_history:
+        role, content = message
+        if role == "user":
+            st.write(f"**You**: {content}")
+        else:
+            st.write(f"**HabitFlow**: {content}")
+
+    # User input for new messages
+    user_input = st.text_input("Ask me anything about habits or suggestions:")
+    if st.button("Send"):
+        if user_input.strip():
+            st.session_state.chat_history.append(("user", user_input))
+            gpt_response = get_gpt_response(user_input)
+            st.session_state.chat_history.append(("assistant", gpt_response))
+            st.experimental_rerun()
+        else:
+            st.error("Please enter a valid message.")
 
 # Dashboard View
 def display_dashboard(habits_data):
@@ -103,7 +125,7 @@ elif menu == "Add Habits":
         else:
             st.error("Please enter a valid habit description.")
 elif menu == "Suggestions":
-    display_suggestions()
+    display_chat()
 elif menu == "Reminders":
     display_reminder_options()
 
